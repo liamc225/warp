@@ -163,6 +163,8 @@ pub enum FeatureFlag {
     /// Enables support for using native shell completions to supplement our
     /// completion specs.
     NativeShellCompletions,
+    /// Enables native enforcement of enterprise telemetry Enabled/Disabled policy.
+    EnterpriseTelemetryPolicy,
 
     /// Adds avatar to the tab bar.
     AvatarInTabBar,
@@ -902,6 +904,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     #[cfg(not(windows))]
     FeatureFlag::SSHTmuxWrapper,
     FeatureFlag::AgentModeAnalytics,
+    FeatureFlag::EnterpriseTelemetryPolicy,
     FeatureFlag::LazySceneBuilding,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,

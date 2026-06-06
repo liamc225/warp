@@ -3529,13 +3529,20 @@ type TelemetryDataCollectionPolicy {
   default: Boolean!
   toggleable: Boolean!
 }
+enum TelemetryEnablementSetting {
+  DISABLE
+  ENABLE
+}
 
 type TelemetrySettings {
+  enforcedSetting: TelemetryEnablementSetting
   forceEnabled: Boolean!
+  setting: TelemetryEnablementSetting!
 }
 
 input TelemetrySettingsInput {
   enabled: AdminEnablementSetting
+  setting: TelemetryEnablementSetting
 }
 
 type Tier {
