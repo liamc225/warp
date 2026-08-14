@@ -120,6 +120,7 @@ use super::action::{
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
+use super::cli_agent_inbox::target_index_for_status;
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
 };
@@ -361,7 +362,9 @@ use crate::terminal::available_shells::AvailableShells;
 use crate::terminal::block_list_viewport::InputMode;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::{plugin_manager_for, PluginModalKind};
-use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
+use crate::terminal::cli_agent_sessions::{
+    CLIAgentSessionStatus, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
+};
 use crate::terminal::enable_auto_reload_modal::{
     EnableAutoReloadModal, EnableAutoReloadModalEvent,
 };
@@ -3527,6 +3530,22 @@ impl Workspace {
         event: &CLIAgentSessionsModelEvent,
         ctx: &mut ViewContext<Self>,
     ) {
+        if uses_vertical_tabs(ctx) {
+            let status = match event {
+                CLIAgentSessionsModelEvent::Started { .. } => {
+                    Some(CLIAgentSessionStatus::InProgress)
+                }
+                CLIAgentSessionsModelEvent::StatusChanged { status, .. } => Some(status.clone()),
+                CLIAgentSessionsModelEvent::Ended { .. } => Some(CLIAgentSessionStatus::Success),
+                CLIAgentSessionsModelEvent::InputSessionChanged { .. }
+                | CLIAgentSessionsModelEvent::SessionUpdated { .. } => None,
+            };
+
+            if let Some(status) = status {
+                self.reorder_cli_agent_tab_for_inbox(event.terminal_view_id(), &status, ctx);
+            }
+        }
+
         if matches!(
             event,
             CLIAgentSessionsModelEvent::Started { .. }
@@ -3536,6 +3555,35 @@ impl Workspace {
         ) && self.workspace_contains_terminal_view(event.terminal_view_id(), ctx)
         {
             ctx.notify();
+        }
+    }
+
+    /// Keeps vertical CLI-agent tabs in an inbox-like order: running sessions
+    /// move out of the way to the bottom, while completed or blocked sessions
+    /// return to the top for review or user action.
+    fn reorder_cli_agent_tab_for_inbox(
+        &mut self,
+        terminal_view_id: EntityId,
+        status: &CLIAgentSessionStatus,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(tab_index) = self.tabs.iter().position(|tab| {
+            tab.pane_group
+                .as_ref(ctx)
+                .contains_terminal_view(terminal_view_id, ctx)
+        }) else {
+            return;
+        };
+
+        // Moving one member out of a group would break the contiguous-group
+        // invariant. Grouped tabs keep their manual order until the user
+        // explicitly reorders them.
+        if self.tabs[tab_index].group_id.is_some() {
+            return;
+        }
+
+        if let Some(target_index) = target_index_for_status(tab_index, self.tabs.len(), status) {
+            self.hop_tab_to_index(tab_index, target_index, ctx);
         }
     }
 
