@@ -8,7 +8,8 @@ Updated: 2026-08-14
 - Running sessions move to the bottom of the vertical tab list.
 - Completed or blocked sessions move to the top for review or user action.
 - Grouped tabs keep their existing order to preserve Warp's group invariants.
-- Existing tab movement preserves the active pane group.
+- Existing tab movement preserves the active pane group and now reveals it
+  after a full-list inbox jump.
 
 ## Current behavior
 
@@ -16,11 +17,14 @@ Updated: 2026-08-14
 - `Started` and `InProgress` events move a session toward the bottom.
 - `Success`, `Blocked`, and `Ended` events move a session toward the top.
 - Session updates that do not change lifecycle status do not repeatedly reorder the tab.
+- Active-tab inbox jumps refresh vertical-tab scrolling so the active tab stays visible.
 
 ## Decisions
 
 - The feature is implemented in the workspace event handler rather than by changing the agent-session model, so it changes presentation order without changing session lifecycle semantics.
 - Blocked sessions are promoted with completed sessions because both require attention from the user.
+- `Ended` remains an inbox completion signal because the existing model emits it
+  after sessions are removed and does not include a final-status payload.
 
 ## Tests and verification
 

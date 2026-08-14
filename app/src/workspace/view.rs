@@ -3583,7 +3583,16 @@ impl Workspace {
         }
 
         if let Some(target_index) = target_index_for_status(tab_index, self.tabs.len(), status) {
+            let moving_active_tab = self.active_tab_index == tab_index;
             self.hop_tab_to_index(tab_index, target_index, ctx);
+
+            // `hop_tab_to_index` preserves the active tab's index directly,
+            // while `set_active_tab_index` also keeps the vertical tab panel
+            // scrolled to the active tab. Inbox jumps can span the whole
+            // list, so reveal the active tab after moving it.
+            if moving_active_tab {
+                self.set_active_tab_index(self.active_tab_index, ctx);
+            }
         }
     }
 

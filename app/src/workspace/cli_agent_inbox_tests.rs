@@ -33,3 +33,19 @@ fn invalid_indices_are_ignored() {
         None
     );
 }
+
+#[test]
+fn single_tabs_are_already_at_both_boundaries() {
+    assert_eq!(
+        target_index_for_status(0, 1, &CLIAgentSessionStatus::InProgress),
+        None
+    );
+    assert_eq!(
+        target_index_for_status(0, 1, &CLIAgentSessionStatus::Success),
+        None
+    );
+    assert_eq!(
+        target_index_for_status(0, 0, &CLIAgentSessionStatus::Success),
+        None
+    );
+}
