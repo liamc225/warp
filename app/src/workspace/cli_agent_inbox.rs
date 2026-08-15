@@ -24,18 +24,28 @@ pub(crate) fn target_index_for_status(
     (target_index != current_index).then_some(target_index)
 }
 
-/// Returns an inbox destination only when the session actually changed
-/// lifecycle state. Repeated prompt/tool events can report the same status and
-/// must not reshuffle concurrent running tabs.
-pub(crate) fn target_index_for_status_transition(
-    current_index: usize,
+/// Returns a stable tab order with running agent indices moved to the end.
+///
+/// The workspace uses this after tab insertion and lifecycle events so a
+/// running agent cannot drift back into the review region when another tab is
+/// opened. The input indices are treated as a set; invalid or duplicate
+/// entries are harmless.
+pub(crate) fn stable_partition_running_tab_indices(
     tab_count: usize,
-    previous_status: &CLIAgentSessionStatus,
-    status: &CLIAgentSessionStatus,
-) -> Option<usize> {
-    (previous_status != status)
-        .then(|| target_index_for_status(current_index, tab_count, status))
-        .flatten()
+    running_tab_indices: &[usize],
+) -> Vec<usize> {
+    let mut order = Vec::with_capacity(tab_count);
+    for tab_index in 0..tab_count {
+        if !running_tab_indices.contains(&tab_index) {
+            order.push(tab_index);
+        }
+    }
+    for tab_index in 0..tab_count {
+        if running_tab_indices.contains(&tab_index) {
+            order.push(tab_index);
+        }
+    }
+    order
 }
 
 #[cfg(test)]

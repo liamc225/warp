@@ -1,4 +1,4 @@
-use super::{target_index_for_status, target_index_for_status_transition};
+use super::{stable_partition_running_tab_indices, target_index_for_status};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 
 #[test]
@@ -51,24 +51,14 @@ fn single_tabs_are_already_at_both_boundaries() {
 }
 
 #[test]
-fn unchanged_status_does_not_reorder_again() {
-    let status = CLIAgentSessionStatus::InProgress;
-
+fn running_tabs_are_stably_partitioned_to_the_bottom() {
     assert_eq!(
-        target_index_for_status_transition(1, 4, &status, &status),
-        None
+        stable_partition_running_tab_indices(5, &[0, 2, 2, 7]),
+        vec![1, 3, 4, 0, 2]
     );
 }
 
 #[test]
-fn status_transition_reorders_once() {
-    assert_eq!(
-        target_index_for_status_transition(
-            1,
-            4,
-            &CLIAgentSessionStatus::Blocked { message: None },
-            &CLIAgentSessionStatus::InProgress,
-        ),
-        Some(3)
-    );
+fn partition_without_running_tabs_preserves_order() {
+    assert_eq!(stable_partition_running_tab_indices(3, &[]), vec![0, 1, 2]);
 }

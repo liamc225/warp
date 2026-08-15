@@ -120,7 +120,7 @@ use super::action::{
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
-use super::cli_agent_inbox::{target_index_for_status, target_index_for_status_transition};
+use super::cli_agent_inbox::{stable_partition_running_tab_indices, target_index_for_status};
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
 };
@@ -3535,24 +3535,7 @@ impl Workspace {
                 CLIAgentSessionsModelEvent::Started { .. } => {
                     Some(CLIAgentSessionStatus::InProgress)
                 }
-                CLIAgentSessionsModelEvent::StatusChanged {
-                    previous_status,
-                    status,
-                    ..
-                } => target_index_for_status_transition(
-                    self.tabs
-                        .iter()
-                        .position(|tab| {
-                            tab.pane_group
-                                .as_ref(ctx)
-                                .contains_terminal_view(event.terminal_view_id(), ctx)
-                        })
-                        .unwrap_or(self.tabs.len()),
-                    self.tabs.len(),
-                    previous_status,
-                    status,
-                )
-                .map(|_| status.clone()),
+                CLIAgentSessionsModelEvent::StatusChanged { status, .. } => Some(status.clone()),
                 CLIAgentSessionsModelEvent::Ended { .. } => Some(CLIAgentSessionStatus::Success),
                 CLIAgentSessionsModelEvent::InputSessionChanged { .. }
                 | CLIAgentSessionsModelEvent::SessionUpdated { .. } => None,
@@ -3561,6 +3544,8 @@ impl Workspace {
             if let Some(status) = status {
                 self.reorder_cli_agent_tab_for_inbox(event.terminal_view_id(), &status, ctx);
             }
+
+            self.reanchor_running_cli_agent_tabs(ctx);
         }
 
         if matches!(
@@ -3611,6 +3596,77 @@ impl Workspace {
                 self.set_active_tab_index(self.active_tab_index, ctx);
             }
         }
+    }
+
+    /// Re-anchors every currently running CLI-agent tab after a lifecycle event
+    /// or tab insertion. A single-tab hop is not enough: opening a new tab
+    /// after a running agent would otherwise leave that agent in the review
+    /// region until its next notification.
+    fn reanchor_running_cli_agent_tabs(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.tabs.len() < 2 {
+            return;
+        }
+
+        let mut running_tab_indices = Vec::new();
+        for (tab_index, tab) in self.tabs.iter().enumerate() {
+            let has_running_agent =
+                tab.pane_group
+                    .as_ref(ctx)
+                    .terminal_views(ctx)
+                    .iter()
+                    .any(|terminal_view| {
+                        CLIAgentSessionsModel::as_ref(ctx)
+                            .session(terminal_view.id())
+                            .is_some_and(|session| {
+                                matches!(&session.status, CLIAgentSessionStatus::InProgress)
+                            })
+                    });
+
+            if has_running_agent {
+                if let Some(group_id) = tab.group_id {
+                    running_tab_indices.extend(group_member_indices(&self.tabs, group_id));
+                } else {
+                    running_tab_indices.push(tab_index);
+                }
+            }
+        }
+
+        running_tab_indices.sort_unstable();
+        running_tab_indices.dedup();
+        if running_tab_indices.is_empty() {
+            return;
+        }
+
+        let desired_order =
+            stable_partition_running_tab_indices(self.tabs.len(), &running_tab_indices);
+        if desired_order
+            .iter()
+            .enumerate()
+            .all(|(new_index, old_index)| new_index == *old_index)
+        {
+            return;
+        }
+
+        let active_pane_group_id = self
+            .tabs
+            .get(self.active_tab_index)
+            .map(|tab| tab.pane_group.id());
+        let old_tabs = std::mem::take(&mut self.tabs);
+        self.tabs = desired_order
+            .into_iter()
+            .map(|old_index| old_tabs[old_index].clone())
+            .collect();
+
+        if let Some(active_pane_group_id) = active_pane_group_id {
+            if let Some(active_tab_index) = self
+                .tabs
+                .iter()
+                .position(|tab| tab.pane_group.id() == active_pane_group_id)
+            {
+                self.set_active_tab_index(active_tab_index, ctx);
+            }
+        }
+        ctx.notify();
     }
 
     /// Handle session settings changes.
@@ -12078,6 +12134,10 @@ impl Workspace {
             self.active_tab_pane_group().update(ctx, |pg, ctx| {
                 pg.set_left_panel_open(true, ctx);
             });
+        }
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
         }
     }
 

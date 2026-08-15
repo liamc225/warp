@@ -570,6 +570,29 @@ fn permission_replied_clears_permission_scoped_state() {
 }
 
 #[test]
+fn tool_complete_clears_permission_scoped_state() {
+    let mut session = blocked_claude_session_with_permission_state();
+
+    let event = CLIAgentEvent {
+        source: CLIAgentEventSource::RichPlugin,
+        v: 1,
+        agent: CLIAgent::Claude,
+        event: CLIAgentEventType::ToolComplete,
+        session_id: Some("abc".to_owned()),
+        cwd: None,
+        project: None,
+        payload: CLIAgentEventPayload::default(),
+    };
+
+    session.apply_event(&event);
+
+    assert_eq!(session.session_context.summary, None);
+    assert_eq!(session.session_context.tool_name, None);
+    assert_eq!(session.session_context.tool_input_preview, None);
+    assert!(matches!(session.status, CLIAgentSessionStatus::InProgress));
+}
+
+#[test]
 fn prompt_submit_clears_permission_scoped_state() {
     // PromptSubmit already clears `response`; clearing the permission-scoped
     // fields keeps the same hygiene if the user manages to start a new turn

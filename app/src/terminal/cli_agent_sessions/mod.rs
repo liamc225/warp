@@ -196,6 +196,7 @@ impl CLIAgentSession {
                 if !matches!(self.status, CLIAgentSessionStatus::Blocked { .. }) {
                     return None;
                 }
+                self.clear_permission_scoped_state();
                 CLIAgentSessionStatus::InProgress
             }
             CLIAgentEventType::Stop => {
@@ -252,12 +253,6 @@ pub enum CLIAgentSessionsModelEvent {
     StatusChanged {
         terminal_view_id: EntityId,
         agent: CLIAgent,
-        /// The status immediately before this change. Subscribers use it to
-        /// detect a genuine lifecycle transition (e.g. `InProgress` →
-        /// `Blocked`); events that leave the status unchanged (repeated
-        /// `PromptSubmit`/`ToolComplete` while already `InProgress`) carry
-        /// `previous_status == status`.
-        previous_status: CLIAgentSessionStatus,
         status: CLIAgentSessionStatus,
         session_context: Box<CLIAgentSessionContext>,
     },
@@ -377,16 +372,9 @@ impl CLIAgentSessionsModel {
             session.session_context.session_id =
                 session_id.or(session.session_context.session_id.take());
 
-            // This session was created earlier by command detection and never
-            // went through `set_session`, so it has not emitted `Started` yet.
-            // Emit it now so subscribers (e.g. the workspace inbox) can place
-            // the now-running tab at the bottom. A brand-new session skips this
-            // branch and gets its single `Started` from `set_session` below.
-            let agent = session.agent;
-            ctx.emit(CLIAgentSessionsModelEvent::Started {
-                terminal_view_id,
-                agent,
-            });
+            // Existing sessions were created through `set_session`, which
+            // already emitted `Started`. Upgrading the listener must not emit
+            // a second lifecycle event or re-run subscribers' start side effects.
             return;
         }
 
@@ -443,14 +431,15 @@ impl CLIAgentSessionsModel {
         let event_type = &event.event;
         let previous_status = session.status.clone();
         if let Some(new_status) = session.apply_event(event) {
-            let agent = session.agent;
-            ctx.emit(CLIAgentSessionsModelEvent::StatusChanged {
-                terminal_view_id,
-                agent,
-                previous_status,
-                status: new_status,
-                session_context: Box::new(session.session_context.clone()),
-            });
+            if previous_status != new_status {
+                let agent = session.agent;
+                ctx.emit(CLIAgentSessionsModelEvent::StatusChanged {
+                    terminal_view_id,
+                    agent,
+                    status: new_status,
+                    session_context: Box::new(session.session_context.clone()),
+                });
+            }
         }
 
         if matches!(
