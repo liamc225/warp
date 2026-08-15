@@ -1,6 +1,6 @@
 use super::{
-    is_attention_status, stable_partition_running_tab_indices, target_index_for_status,
-    target_index_for_status_block,
+    is_attention_status, stable_partition_inbox_tab_indices, stable_partition_running_tab_indices,
+    target_index_for_status, target_index_for_status_block,
 };
 use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 
@@ -64,6 +64,34 @@ fn running_tabs_are_stably_partitioned_to_the_bottom() {
 #[test]
 fn partition_without_running_tabs_preserves_order() {
     assert_eq!(stable_partition_running_tab_indices(3, &[]), vec![0, 1, 2]);
+}
+
+#[test]
+fn attention_tabs_precede_neutral_and_running_tabs() {
+    assert_eq!(
+        stable_partition_inbox_tab_indices(5, &[1, 4], &[0, 3]),
+        vec![1, 4, 2, 0, 3]
+    );
+}
+
+#[test]
+fn running_tabs_take_precedence_over_attention_tabs() {
+    assert_eq!(
+        stable_partition_inbox_tab_indices(5, &[0, 2], &[2, 4]),
+        vec![0, 1, 3, 2, 4]
+    );
+}
+
+#[test]
+fn inbox_partition_ignores_invalid_and_duplicate_indices() {
+    assert_eq!(
+        stable_partition_inbox_tab_indices(0, &[0, 0, 4], &[1, 1]),
+        Vec::<usize>::new()
+    );
+    assert_eq!(
+        stable_partition_inbox_tab_indices(3, &[0, 9, 0], &[2, 9, 2]),
+        vec![0, 1, 2]
+    );
 }
 
 #[test]

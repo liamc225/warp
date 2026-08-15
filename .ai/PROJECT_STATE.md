@@ -1,6 +1,6 @@
 # Project State
 
-Updated: 2026-08-14
+Updated: 2026-08-15
 
 ## Completed work
 
@@ -29,6 +29,10 @@ Updated: 2026-08-14
   avoiding a top-then-bottom double jump.
 - Existing-pane insertions clamp stale indices defensively, and transferred tabs
   are added to the workspace MRU order.
+- Enabling vertical tabs normalizes existing agent sessions into stable
+  attention, neutral, and running regions immediately, including grouped tabs.
+- Workspaces restored with vertical tabs already enabled receive the same
+  normalization after their tabs are reconstructed.
 
 ## Decisions
 
@@ -41,7 +45,7 @@ Updated: 2026-08-14
 
 - `rustfmt --edition 2021 --check` passes for the changed Rust files.
 - `cargo fmt --all -- --check` passes.
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 10 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 13 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_sessions --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 124 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for macOS arm64.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin integration --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for live UI verification.
@@ -57,6 +61,10 @@ Updated: 2026-08-14
   contains both running and completed members.
 - Existing-pane insertion and cross-window transfer preserve their index/MRU
   invariants under stale or remote insertion state.
+- Enabling vertical tabs performs one stable inbox normalization pass for
+  pre-existing sessions instead of waiting for a later lifecycle event.
+- Workspace restoration also normalizes the inbox when the setting was already
+  enabled before the window was reconstructed.
 - Previous manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: while a prompt is running, the active OpenCode tab moves to the bottom; when OpenCode emits `session.idle`, the same tab returns to the top while the OpenCode process remains open.
 
 ## Next actions

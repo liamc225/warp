@@ -71,9 +71,30 @@ pub(crate) fn stable_partition_running_tab_indices(
     tab_count: usize,
     running_tab_indices: &[usize],
 ) -> Vec<usize> {
+    stable_partition_inbox_tab_indices(tab_count, &[], running_tab_indices)
+}
+
+/// Returns a stable three-region tab order for the vertical-tab inbox.
+///
+/// Attention tabs come first, neutral tabs stay in the middle, and running
+/// tabs go last. Running takes precedence if an index appears in both input
+/// sets. Invalid and duplicate indices are harmless because the output is
+/// built from the complete in-bounds tab range exactly once.
+pub(crate) fn stable_partition_inbox_tab_indices(
+    tab_count: usize,
+    attention_tab_indices: &[usize],
+    running_tab_indices: &[usize],
+) -> Vec<usize> {
     let mut order = Vec::with_capacity(tab_count);
+
     for tab_index in 0..tab_count {
-        if !running_tab_indices.contains(&tab_index) {
+        if attention_tab_indices.contains(&tab_index) && !running_tab_indices.contains(&tab_index) {
+            order.push(tab_index);
+        }
+    }
+    for tab_index in 0..tab_count {
+        if !attention_tab_indices.contains(&tab_index) && !running_tab_indices.contains(&tab_index)
+        {
             order.push(tab_index);
         }
     }

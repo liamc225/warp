@@ -121,8 +121,8 @@ use super::action::{
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
 use super::cli_agent_inbox::{
-    is_attention_status, stable_partition_running_tab_indices, target_index_for_status,
-    target_index_for_status_block,
+    is_attention_status, stable_partition_inbox_tab_indices, stable_partition_running_tab_indices,
+    target_index_for_status, target_index_for_status_block,
 };
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
@@ -3347,6 +3347,9 @@ impl Workspace {
         };
 
         ws.configure_new_workspace(workspace_setting, ctx);
+        if uses_vertical_tabs(ctx) {
+            ws.normalize_cli_agent_inbox_order(ctx);
+        }
         ws.sync_panel_positions_from_config(ctx);
         ws.sync_window_button_visibility(ctx);
         ws.update_titlebar_height(ctx);
@@ -3724,6 +3727,135 @@ impl Workspace {
         ctx.notify();
     }
 
+    /// Normalizes the inbox when vertical tabs are enabled after sessions are
+    /// already present. This keeps completed or blocked work at the top,
+    /// neutral tabs in the middle, and running work at the bottom in one
+    /// stable pass while preserving grouped tabs as atomic blocks.
+    fn normalize_cli_agent_inbox_order(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.tabs.len() < 2 {
+            return;
+        }
+
+        let mut attention_tab_indices = Vec::new();
+        let mut running_tab_indices = Vec::new();
+        let mut processed_group_ids = HashSet::new();
+
+        for tab_index in 0..self.tabs.len() {
+            if let Some(group_id) = self.tabs[tab_index].group_id {
+                if !processed_group_ids.insert(group_id) {
+                    continue;
+                }
+
+                let group_indices: Vec<usize> =
+                    group_member_indices(&self.tabs, group_id).collect();
+                let group_has_running = group_indices.iter().any(|group_tab_index| {
+                    self.tabs[*group_tab_index]
+                        .pane_group
+                        .as_ref(ctx)
+                        .terminal_views(ctx)
+                        .iter()
+                        .any(|terminal_view| {
+                            CLIAgentSessionsModel::as_ref(ctx)
+                                .session(terminal_view.id())
+                                .is_some_and(|session| {
+                                    matches!(&session.status, CLIAgentSessionStatus::InProgress)
+                                })
+                        })
+                });
+                let group_has_attention = !group_has_running
+                    && group_indices.iter().any(|group_tab_index| {
+                        self.tabs[*group_tab_index]
+                            .pane_group
+                            .as_ref(ctx)
+                            .terminal_views(ctx)
+                            .iter()
+                            .any(|terminal_view| {
+                                CLIAgentSessionsModel::as_ref(ctx)
+                                    .session(terminal_view.id())
+                                    .is_some_and(|session| is_attention_status(&session.status))
+                            })
+                    });
+
+                if group_has_running {
+                    running_tab_indices.extend(group_indices);
+                } else if group_has_attention {
+                    attention_tab_indices.extend(group_indices);
+                }
+                continue;
+            }
+
+            let has_running_agent = self.tabs[tab_index]
+                .pane_group
+                .as_ref(ctx)
+                .terminal_views(ctx)
+                .iter()
+                .any(|terminal_view| {
+                    CLIAgentSessionsModel::as_ref(ctx)
+                        .session(terminal_view.id())
+                        .is_some_and(|session| {
+                            matches!(&session.status, CLIAgentSessionStatus::InProgress)
+                        })
+                });
+            if has_running_agent {
+                running_tab_indices.push(tab_index);
+            } else if self.tabs[tab_index]
+                .pane_group
+                .as_ref(ctx)
+                .terminal_views(ctx)
+                .iter()
+                .any(|terminal_view| {
+                    CLIAgentSessionsModel::as_ref(ctx)
+                        .session(terminal_view.id())
+                        .is_some_and(|session| is_attention_status(&session.status))
+                })
+            {
+                attention_tab_indices.push(tab_index);
+            }
+        }
+
+        attention_tab_indices.sort_unstable();
+        attention_tab_indices.dedup();
+        running_tab_indices.sort_unstable();
+        running_tab_indices.dedup();
+
+        let desired_order = stable_partition_inbox_tab_indices(
+            self.tabs.len(),
+            &attention_tab_indices,
+            &running_tab_indices,
+        );
+        if desired_order
+            .iter()
+            .enumerate()
+            .all(|(new_index, old_index)| new_index == *old_index)
+        {
+            return;
+        }
+
+        let active_pane_group_id = self
+            .tabs
+            .get(self.active_tab_index)
+            .map(|tab| tab.pane_group.id());
+        let old_tabs = std::mem::take(&mut self.tabs);
+        self.tabs = desired_order
+            .into_iter()
+            .map(|old_index| old_tabs[old_index].clone())
+            .collect();
+
+        if let Some(active_pane_group_id) = active_pane_group_id {
+            if let Some(active_tab_index) = self
+                .tabs
+                .iter()
+                .position(|tab| tab.pane_group.id() == active_pane_group_id)
+            {
+                self.set_active_tab_index(active_tab_index, ctx);
+            }
+        }
+        if !attention_tab_indices.is_empty() {
+            self.vertical_tabs_panel.scroll_to_tab(0);
+        }
+        ctx.notify();
+    }
+
     /// Handle session settings changes.
     fn handle_session_settings_event(
         &mut self,
@@ -3775,6 +3907,7 @@ impl Workspace {
 
                 if vertical_tabs_enabled {
                     Self::ensure_tabs_panel_in_config(ctx);
+                    self.normalize_cli_agent_inbox_order(ctx);
                 }
 
                 let appearance = Appearance::as_ref(ctx);
