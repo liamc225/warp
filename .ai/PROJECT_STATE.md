@@ -30,14 +30,14 @@ Updated: 2026-08-14
 
 - `rustfmt --edition 2021 --check` passes for the changed Rust files.
 - `cargo fmt --all -- --check` passes.
-- Focused Cargo tests reached Warp's `warpui` build script but could not complete because this environment has no `xcrun metal` tool.
-- A Linux-targeted Cargo check could not run because the `x86_64-unknown-linux-gnu` Rust target is not installed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty --locked` passes: 5 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev --locked` succeeds for macOS arm64.
+- Manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: an OpenCode tab moved to the bottom while running and returned to the top after the process ended; the active tab remained usable.
 
 ## Next actions
 
-- Run the focused Cargo test on macOS with Xcode Command Line Tools installed.
-- Manually verify running, blocked, and completed CLI-agent sessions with vertical tabs enabled, including active-tab preservation.
+- Keep the branch available for review or open a pull request when ready.
 
 ## Blockers
 
-- Full native verification is blocked locally by the missing macOS Metal compiler (`xcrun metal`).
+- None for local build and verification.
