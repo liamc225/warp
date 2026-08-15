@@ -24,6 +24,13 @@ pub(crate) fn target_index_for_status(
     (target_index != current_index).then_some(target_index)
 }
 
+pub(crate) fn is_attention_status(status: &CLIAgentSessionStatus) -> bool {
+    matches!(
+        status,
+        CLIAgentSessionStatus::Success | CLIAgentSessionStatus::Blocked { .. }
+    )
+}
+
 /// Returns the insertion index for a contiguous grouped-tab block.
 ///
 /// The running destination is expressed as the pre-drain end index because

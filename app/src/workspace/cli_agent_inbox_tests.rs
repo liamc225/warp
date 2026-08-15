@@ -1,5 +1,6 @@
 use super::{
-    stable_partition_running_tab_indices, target_index_for_status, target_index_for_status_block,
+    is_attention_status, stable_partition_running_tab_indices, target_index_for_status,
+    target_index_for_status_block,
 };
 use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 
@@ -87,4 +88,13 @@ fn grouped_running_sessions_move_to_the_bottom() {
         target_index_for_status_block(3, 4, 5, &CLIAgentSessionStatus::InProgress),
         None
     );
+}
+
+#[test]
+fn completed_and_blocked_sessions_need_attention() {
+    assert!(is_attention_status(&CLIAgentSessionStatus::Success));
+    assert!(is_attention_status(&CLIAgentSessionStatus::Blocked {
+        message: None
+    }));
+    assert!(!is_attention_status(&CLIAgentSessionStatus::InProgress));
 }

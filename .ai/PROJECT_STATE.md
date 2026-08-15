@@ -7,7 +7,7 @@ Updated: 2026-08-14
 - Added an inbox-style ordering helper for CLI-agent tabs.
 - Running sessions move to the bottom of the vertical tab list.
 - Completed or blocked sessions move to the top for review or user action.
-- Grouped tabs keep their existing order to preserve Warp's group invariants.
+- Grouped tabs remain contiguous and move atomically to preserve Warp's group invariants.
 - Existing tab movement preserves the active pane group and now reveals it
   after a full-list inbox jump.
 
@@ -23,6 +23,12 @@ Updated: 2026-08-14
   while completed or blocked groups go to the top.
 - Restored, transferred, shared-session, and existing-pane tab insertions also
   re-anchor running agent tabs.
+- Background completions and blocked sessions reveal the top of the vertical
+  inbox so the newly actionable tab is visible even when the panel was scrolled.
+- Mixed-status groups use aggregate running state for one stable placement pass,
+  avoiding a top-then-bottom double jump.
+- Existing-pane insertions clamp stale indices defensively, and transferred tabs
+  are added to the workspace MRU order.
 
 ## Decisions
 
@@ -35,7 +41,7 @@ Updated: 2026-08-14
 
 - `rustfmt --edition 2021 --check` passes for the changed Rust files.
 - `cargo fmt --all -- --check` passes.
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 9 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 10 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_sessions --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 124 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for macOS arm64.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin integration --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for live UI verification.
@@ -45,6 +51,12 @@ Updated: 2026-08-14
 - Running tabs are stably re-anchored after tab insertion, including grouped tabs as atomic units.
 - All known tab insertion paths now call the running-tab re-anchor, including
   closed-tab restore and cross-window transfer.
+- Background attention events now scroll the vertical inbox to the promoted
+  top destination.
+- Grouped lifecycle events avoid contradictory placement passes when a group
+  contains both running and completed members.
+- Existing-pane insertion and cross-window transfer preserve their index/MRU
+  invariants under stale or remote insertion state.
 - Previous manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: while a prompt is running, the active OpenCode tab moves to the bottom; when OpenCode emits `session.idle`, the same tab returns to the top while the OpenCode process remains open.
 
 ## Next actions

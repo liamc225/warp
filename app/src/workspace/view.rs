@@ -121,7 +121,8 @@ use super::action::{
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
 use super::cli_agent_inbox::{
-    stable_partition_running_tab_indices, target_index_for_status, target_index_for_status_block,
+    is_attention_status, stable_partition_running_tab_indices, target_index_for_status,
+    target_index_for_status_block,
 };
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
@@ -3584,6 +3585,26 @@ impl Workspace {
         // inbox. A group with any running agent belongs at the bottom; a
         // completed or blocked group belongs at the top.
         if let Some(group_id) = self.tabs[tab_index].group_id {
+            let group_has_running_agent =
+                group_member_indices(&self.tabs, group_id).any(|group_tab_index| {
+                    self.tabs[group_tab_index]
+                        .pane_group
+                        .as_ref(ctx)
+                        .terminal_views(ctx)
+                        .iter()
+                        .any(|terminal_view| {
+                            CLIAgentSessionsModel::as_ref(ctx)
+                                .session(terminal_view.id())
+                                .is_some_and(|session| {
+                                    matches!(&session.status, CLIAgentSessionStatus::InProgress)
+                                })
+                        })
+                });
+            let group_status = if group_has_running_agent {
+                CLIAgentSessionStatus::InProgress
+            } else {
+                status.clone()
+            };
             let moving_active_group = self
                 .tabs
                 .get(self.active_tab_index)
@@ -3592,15 +3613,21 @@ impl Workspace {
             else {
                 return;
             };
-            let Some(target_index) =
-                target_index_for_status_block(first_index, last_index, self.tabs.len(), status)
-            else {
+            let Some(target_index) = target_index_for_status_block(
+                first_index,
+                last_index,
+                self.tabs.len(),
+                &group_status,
+            ) else {
                 return;
             };
             self.move_group_block(group_id, target_index, ctx);
 
             if moving_active_group {
                 self.set_active_tab_index(self.active_tab_index, ctx);
+            }
+            if is_attention_status(&group_status) {
+                self.vertical_tabs_panel.scroll_to_tab(0);
             }
             return;
         }
@@ -3616,6 +3643,13 @@ impl Workspace {
             if moving_active_tab {
                 self.set_active_tab_index(self.active_tab_index, ctx);
             }
+        }
+
+        if is_attention_status(status) {
+            // A background completion can move a tab above the current
+            // viewport without changing the active tab. Reveal the inbox
+            // destination so the newly actionable session is visible.
+            self.vertical_tabs_panel.scroll_to_tab(0);
         }
     }
 
@@ -12201,6 +12235,7 @@ impl Workspace {
                 .push(self.tabs.last().unwrap().pane_group.id());
             self.activate_tab_internal(self.tab_count() - 1, ctx);
         } else {
+            let new_idx = new_idx.min(self.tabs.len());
             self.tabs.insert(new_idx, TabData::new(new_pane_group));
             self.tab_mru_order.push(self.tabs[new_idx].pane_group.id());
             self.activate_tab_internal(new_idx, ctx);
@@ -26091,6 +26126,7 @@ impl Workspace {
         tab_data.selected_color = color.map_or(SelectedTabColor::Unset, SelectedTabColor::Color);
         tab_data.draggable_state = draggable_state;
         self.tabs.insert(index, tab_data);
+        self.tab_mru_order.push(self.tabs[index].pane_group.id());
         self.activate_tab_internal(index, ctx);
 
         if uses_vertical_tabs(ctx) {
