@@ -24,6 +24,36 @@ pub(crate) fn target_index_for_status(
     (target_index != current_index).then_some(target_index)
 }
 
+/// Returns the insertion index for a contiguous grouped-tab block.
+///
+/// The running destination is expressed as the pre-drain end index because
+/// `Vec::drain` removes the block before reinserting it. The returned `None`
+/// means the block is already at its desired boundary.
+pub(crate) fn target_index_for_status_block(
+    first_index: usize,
+    last_index: usize,
+    tab_count: usize,
+    status: &CLIAgentSessionStatus,
+) -> Option<usize> {
+    if tab_count == 0 || first_index > last_index || last_index >= tab_count {
+        return None;
+    }
+
+    let block_size = last_index - first_index + 1;
+    let final_index = match status {
+        CLIAgentSessionStatus::InProgress => tab_count - block_size,
+        CLIAgentSessionStatus::Success | CLIAgentSessionStatus::Blocked { .. } => 0,
+    };
+    if final_index == first_index {
+        return None;
+    }
+
+    Some(match status {
+        CLIAgentSessionStatus::InProgress => tab_count,
+        CLIAgentSessionStatus::Success | CLIAgentSessionStatus::Blocked { .. } => 0,
+    })
+}
+
 /// Returns a stable tab order with running agent indices moved to the end.
 ///
 /// The workspace uses this after tab insertion and lifecycle events so a

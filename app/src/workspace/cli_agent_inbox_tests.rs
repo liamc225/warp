@@ -1,4 +1,6 @@
-use super::{stable_partition_running_tab_indices, target_index_for_status};
+use super::{
+    stable_partition_running_tab_indices, target_index_for_status, target_index_for_status_block,
+};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 
 #[test]
@@ -61,4 +63,28 @@ fn running_tabs_are_stably_partitioned_to_the_bottom() {
 #[test]
 fn partition_without_running_tabs_preserves_order() {
     assert_eq!(stable_partition_running_tab_indices(3, &[]), vec![0, 1, 2]);
+}
+
+#[test]
+fn grouped_completed_sessions_move_to_the_top() {
+    assert_eq!(
+        target_index_for_status_block(2, 3, 5, &CLIAgentSessionStatus::Success),
+        Some(0)
+    );
+    assert_eq!(
+        target_index_for_status_block(0, 1, 5, &CLIAgentSessionStatus::Success),
+        None
+    );
+}
+
+#[test]
+fn grouped_running_sessions_move_to_the_bottom() {
+    assert_eq!(
+        target_index_for_status_block(1, 2, 5, &CLIAgentSessionStatus::InProgress),
+        Some(5)
+    );
+    assert_eq!(
+        target_index_for_status_block(3, 4, 5, &CLIAgentSessionStatus::InProgress),
+        None
+    );
 }

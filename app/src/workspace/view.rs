@@ -120,7 +120,9 @@ use super::action::{
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
-use super::cli_agent_inbox::{stable_partition_running_tab_indices, target_index_for_status};
+use super::cli_agent_inbox::{
+    stable_partition_running_tab_indices, target_index_for_status, target_index_for_status_block,
+};
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
 };
@@ -3577,10 +3579,29 @@ impl Workspace {
             return;
         };
 
-        // Moving one member out of a group would break the contiguous-group
-        // invariant. Grouped tabs keep their manual order until the user
-        // explicitly reorders them.
-        if self.tabs[tab_index].group_id.is_some() {
+        // Move a whole group as one unit so the contiguous-group invariant is
+        // preserved while grouped agent sessions still participate in the
+        // inbox. A group with any running agent belongs at the bottom; a
+        // completed or blocked group belongs at the top.
+        if let Some(group_id) = self.tabs[tab_index].group_id {
+            let moving_active_group = self
+                .tabs
+                .get(self.active_tab_index)
+                .is_some_and(|tab| tab.group_id == Some(group_id));
+            let Some((first_index, last_index)) = group_member_index_range(&self.tabs, group_id)
+            else {
+                return;
+            };
+            let Some(target_index) =
+                target_index_for_status_block(first_index, last_index, self.tabs.len(), status)
+            else {
+                return;
+            };
+            self.move_group_block(group_id, target_index, ctx);
+
+            if moving_active_group {
+                self.set_active_tab_index(self.active_tab_index, ctx);
+            }
             return;
         }
 
@@ -4251,6 +4272,10 @@ impl Workspace {
 
         self.tabs.push(TabData::new(new_pane_group));
         self.activate_tab_internal(self.tab_count() - 1, ctx);
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
+        }
     }
 
     /// Opens a cloud conversation by server token.
@@ -4328,6 +4353,10 @@ impl Workspace {
         self.tab_mru_order
             .push(self.tabs[new_tab_index].pane_group.id());
         self.activate_tab_internal(new_tab_index, ctx);
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
+        }
 
         let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
         let server_token = conversation_id;
@@ -11749,6 +11778,10 @@ impl Workspace {
             .push(self.tabs[tab_index].pane_group.id());
         self.activate_tab(tab_index, ctx);
 
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
+        }
+
         ctx.notify();
     }
 
@@ -12171,6 +12204,10 @@ impl Workspace {
             self.tabs.insert(new_idx, TabData::new(new_pane_group));
             self.tab_mru_order.push(self.tabs[new_idx].pane_group.id());
             self.activate_tab_internal(new_idx, ctx);
+        }
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
         }
     }
 
@@ -12734,6 +12771,10 @@ impl Workspace {
         self.tabs.push(TabData::new(new_pane_group.clone()));
         let new_tab_index = self.tab_count() - 1;
         self.activate_tab_internal(new_tab_index, ctx);
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
+        }
 
         // Get both IDs from the NEW tab's pane group
         let pane_group_id = new_pane_group.id();
@@ -26051,6 +26092,11 @@ impl Workspace {
         tab_data.draggable_state = draggable_state;
         self.tabs.insert(index, tab_data);
         self.activate_tab_internal(index, ctx);
+
+        if uses_vertical_tabs(ctx) {
+            self.reanchor_running_cli_agent_tabs(ctx);
+        }
+
         ctx.notify();
     }
 

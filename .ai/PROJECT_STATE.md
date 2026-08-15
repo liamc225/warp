@@ -19,6 +19,10 @@ Updated: 2026-08-14
 - Session updates that do not change lifecycle status do not emit redundant status events.
 - Active-tab inbox jumps refresh vertical-tab scrolling so the active tab stays visible.
 - Running agent tabs are re-anchored to the bottom when another tab is inserted.
+- Grouped agent tabs move as atomic blocks: running groups go to the bottom,
+  while completed or blocked groups go to the top.
+- Restored, transferred, shared-session, and existing-pane tab insertions also
+  re-anchor running agent tabs.
 
 ## Decisions
 
@@ -31,7 +35,7 @@ Updated: 2026-08-14
 
 - `rustfmt --edition 2021 --check` passes for the changed Rust files.
 - `cargo fmt --all -- --check` passes.
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 7 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 9 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_sessions --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 124 tests passed.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for macOS arm64.
 - `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin integration --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for live UI verification.
@@ -39,12 +43,15 @@ Updated: 2026-08-14
 - Repeated in-progress notifications no longer emit redundant lifecycle events; listener upgrades do not duplicate `Started` side effects.
 - Permission-scoped tool metadata is cleared when a blocked session resumes through `ToolComplete`.
 - Running tabs are stably re-anchored after tab insertion, including grouped tabs as atomic units.
-- Manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: while a prompt is running, the active OpenCode tab moves to the bottom; when OpenCode emits `session.idle`, the same tab returns to the top while the OpenCode process remains open.
+- All known tab insertion paths now call the running-tab re-anchor, including
+  closed-tab restore and cross-window transfer.
+- Previous manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: while a prompt is running, the active OpenCode tab moves to the bottom; when OpenCode emits `session.idle`, the same tab returns to the top while the OpenCode process remains open.
 
 ## Next actions
 
+- Unlock the Mac and repeat the live visual check for grouped and restored-tab insertion paths.
 - Keep the branch available for review or open a pull request when ready.
 
 ## Blockers
 
-- None for local build and verification.
+- Latest static tests and builds pass. The latest live visual recheck is pending because the Mac is locked and Computer Use cannot unlock it automatically.
