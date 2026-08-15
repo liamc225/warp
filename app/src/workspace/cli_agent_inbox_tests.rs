@@ -1,4 +1,4 @@
-use super::target_index_for_status;
+use super::{target_index_for_status, target_index_for_status_transition};
 use crate::terminal::cli_agent_sessions::CLIAgentSessionStatus;
 
 #[test]
@@ -47,5 +47,28 @@ fn single_tabs_are_already_at_both_boundaries() {
     assert_eq!(
         target_index_for_status(0, 0, &CLIAgentSessionStatus::Success),
         None
+    );
+}
+
+#[test]
+fn unchanged_status_does_not_reorder_again() {
+    let status = CLIAgentSessionStatus::InProgress;
+
+    assert_eq!(
+        target_index_for_status_transition(1, 4, &status, &status),
+        None
+    );
+}
+
+#[test]
+fn status_transition_reorders_once() {
+    assert_eq!(
+        target_index_for_status_transition(
+            1,
+            4,
+            &CLIAgentSessionStatus::Blocked { message: None },
+            &CLIAgentSessionStatus::InProgress,
+        ),
+        Some(3)
     );
 }

@@ -120,7 +120,7 @@ use super::action::{
 };
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use super::auto_handoff::AutoCloudHandoffController;
-use super::cli_agent_inbox::target_index_for_status;
+use super::cli_agent_inbox::{target_index_for_status, target_index_for_status_transition};
 use super::close_session_confirmation_dialog::{
     CloseSessionConfirmationDialog, CloseSessionConfirmationEvent, OpenDialogSource,
 };
@@ -3535,7 +3535,24 @@ impl Workspace {
                 CLIAgentSessionsModelEvent::Started { .. } => {
                     Some(CLIAgentSessionStatus::InProgress)
                 }
-                CLIAgentSessionsModelEvent::StatusChanged { status, .. } => Some(status.clone()),
+                CLIAgentSessionsModelEvent::StatusChanged {
+                    previous_status,
+                    status,
+                    ..
+                } => target_index_for_status_transition(
+                    self.tabs
+                        .iter()
+                        .position(|tab| {
+                            tab.pane_group
+                                .as_ref(ctx)
+                                .contains_terminal_view(event.terminal_view_id(), ctx)
+                        })
+                        .unwrap_or(self.tabs.len()),
+                    self.tabs.len(),
+                    previous_status,
+                    status,
+                )
+                .map(|_| status.clone()),
                 CLIAgentSessionsModelEvent::Ended { .. } => Some(CLIAgentSessionStatus::Success),
                 CLIAgentSessionsModelEvent::InputSessionChanged { .. }
                 | CLIAgentSessionsModelEvent::SessionUpdated { .. } => None,

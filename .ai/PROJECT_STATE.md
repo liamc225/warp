@@ -30,9 +30,12 @@ Updated: 2026-08-14
 
 - `rustfmt --edition 2021 --check` passes for the changed Rust files.
 - `cargo fmt --all -- --check` passes.
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty --locked` passes: 5 tests passed.
-- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev --locked` succeeds for macOS arm64.
-- Manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: an OpenCode tab moved to the bottom while running and returned to the top after the process ended; the active tab remained usable.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_inbox --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 7 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo test -p warp cli_agent_sessions --lib --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` passes: 123 tests passed.
+- `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer cargo build -p warp --bin warp-oss --features gui,local_fs,local_tty,fast_dev,hoa_notifications,open_code_notifications,pluggable_notifications --locked` succeeds for macOS arm64.
+- Configured the official `@warp-dot-dev/opencode-warp@0.1.5` plugin in the existing `~/.config/opencode/opencode.jsonc`, preserving the existing goal plugin.
+- Repeated in-progress notifications no longer reshuffle concurrent running tabs; listener upgrades emit the missing initial start event for restored sessions.
+- Manual UI verification passed with the built `WarpOss` app and vertical tabs enabled: while a prompt is running, the active OpenCode tab moves to the bottom; when OpenCode emits `session.idle`, the same tab returns to the top while the OpenCode process remains open.
 
 ## Next actions
 
